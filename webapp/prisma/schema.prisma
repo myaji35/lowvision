@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 보조공학 제품 모델
+model AssistiveProduct {
+  id           String    @id @default(uuid())
+  name         String    // 제품명
+  category     String    // 카테고리: AI 안경, 웨어러블, 스마트 지팡이, 스마트폰, 비디오 확대기
+  manufacturer String    // 제조사
+  price        Int?      // 가격 (원) - 미정인 경우 null
+  description  String    // 제품 설명
+  features     String    // 주요 기능 (JSON string)
+  imageUrl     String?   // 제품 이미지 URL
+  purchaseUrl  String?   // 구매 링크
+  publishedAt  DateTime? // 공개 일시 (null이면 비공개)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("assistive_products")
+}
+
+// 연락처 정보 모델 (단일 레코드)
+model ContactInfo {
+  id              Int      @id @default(1)
+  organizationKo  String   // 조직명 (한글)
+  organizationEn  String   // 조직명 (영문)
+  address         String   // 주소
+  phone           String   // 전화번호
+  fax             String   // 팩스번호
+  email           String   // 이메일
+  updatedAt       DateTime @updatedAt
+
+  @@map("contact_info")
+}

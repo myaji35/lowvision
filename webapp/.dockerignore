@@ -1,0 +1,31 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Build
+.next
+out
+build
+
+# Development
+.git
+.gitignore
+README.md
+.env*.local
+
+# Testing
+coverage
+*.log
+
+# Database
+*.db
+*.db-journal
+local.db
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db

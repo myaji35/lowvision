@@ -1,44 +1,100 @@
-'use client';
-
-import { useParams, useRouter } from 'next/navigation';
+import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { products } from '../data/products';
-import { categoryLabels } from '../types';
 import { ChevronLeft, ExternalLink, CheckCircle2 } from 'lucide-react';
-import type { AssistiveTechProduct } from '../types';
+import { prisma } from '@/lib/prisma';
+import { BackButton } from './BackButton';
 
-export default function ProductDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const productId = parseInt(params.id as string, 10);
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
 
-  const product = products.find((p) => p.id === productId);
-
-  if (!product) {
-    return (
-      <div className="container py-12">
-        <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-4">제품을 찾을 수 없습니다</h1>
-          <p className="text-muted-foreground mb-6">
-            요청하신 제품 정보가 존재하지 않습니다.
-          </p>
-          <Button asChild>
-            <Link href="/daily-life/assistive-tech">
-              <ChevronLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              목록으로 돌아가기
-            </Link>
-          </Button>
-        </div>
-      </div>
-    );
+// 정적 페이지 생성을 위한 모든 제품 ID 반환
+export async function generateStaticParams() {
+  // 빌드 시에는 동적 생성을 건너뜀 (데이터베이스가 없을 수 있음)
+  if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL?.includes('lowvision')) {
+    return [];
   }
 
-  // Get related products (same category, excluding current)
-  const relatedProducts = products
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 3);
+  try {
+    const products = await prisma.assistiveProduct.findMany({
+      where: {
+        publishedAt: { not: null }, // 공개된 제품만
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return products.map((product: any) => ({
+      id: product.id,
+    }));
+  } catch (error) {
+    console.warn('Failed to generate static params:', error);
+    return [];
+  }
+}
+
+// SEO 메타데이터 생성
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+
+  const product = await prisma.assistiveProduct.findUnique({
+    where: { id },
+  });
+
+  if (!product || !product.publishedAt) {
+    return {
+      title: '제품을 찾을 수 없습니다',
+    };
+  }
+
+  return {
+    title: `${product.name} - 보조공학 제품 - 한국저시력인협회`,
+    description: product.description,
+    openGraph: {
+      title: product.name,
+      description: product.description,
+      images: product.imageUrl ? [product.imageUrl] : [],
+    },
+  };
+}
+
+export default async function ProductDetailPage({ params }: PageProps) {
+  const { id } = await params;
+
+  const product = await prisma.assistiveProduct.findUnique({
+    where: { id },
+  });
+
+  // 제품이 없거나 비공개인 경우 404
+  if (!product || !product.publishedAt) {
+    notFound();
+  }
+
+  // features를 JSON 파싱
+  const features = JSON.parse(product.features) as string[];
+
+  // 관련 제품 조회 (같은 카테고리, 현재 제품 제외, 공개된 것만)
+  const relatedProducts = await prisma.assistiveProduct.findMany({
+    where: {
+      category: product.category,
+      id: { not: product.id },
+      publishedAt: { not: null },
+    },
+    take: 3,
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  // 가격 포맷팅
+  const formatPrice = (price: number | null) => {
+    if (price === null) return '가격 미정';
+    return `${price.toLocaleString()}원`;
+  };
 
   return (
     <div className="container py-8 md:py-12">
@@ -64,12 +120,7 @@ export default function ProductDetailPage() {
       </nav>
 
       {/* Back Button */}
-      <div className="mb-6">
-        <Button variant="ghost" onClick={() => router.back()} className="gap-2">
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          <span>뒤로 가기</span>
-        </Button>
-      </div>
+      <BackButton />
 
       {/* Product Detail Section */}
       <article className="max-w-4xl mx-auto">
@@ -78,16 +129,14 @@ export default function ProductDetailPage() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1">
               <span className="inline-block px-3 py-1 text-sm font-medium rounded-full bg-primary/10 text-primary mb-3">
-                {categoryLabels[product.category]}
+                {product.category}
               </span>
               <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-2">
                 {product.name}
               </h1>
-              {product.manufacturer && (
-                <p className="text-lg text-muted-foreground">
-                  제조사: {product.manufacturer}
-                </p>
-              )}
+              <p className="text-lg text-muted-foreground">
+                제조사: {product.manufacturer}
+              </p>
             </div>
           </div>
           <p className="text-xl text-foreground leading-relaxed">
@@ -108,7 +157,7 @@ export default function ProductDetailPage() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3">
-                  {product.features.map((feature, index) => (
+                  {features.map((feature, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <CheckCircle2
                         className="h-5 w-5 text-primary mt-0.5 flex-shrink-0"
@@ -136,34 +185,32 @@ export default function ProductDetailPage() {
                     가격
                   </dt>
                   <dd className="text-2xl font-bold text-foreground">
-                    {product.price}
+                    {formatPrice(product.price)}
                   </dd>
                 </div>
-                {product.manufacturer && (
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground mb-1">
-                      제조사
-                    </dt>
-                    <dd className="text-base">{product.manufacturer}</dd>
-                  </div>
-                )}
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground mb-1">
+                    제조사
+                  </dt>
+                  <dd className="text-base">{product.manufacturer}</dd>
+                </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground mb-1">
                     카테고리
                   </dt>
-                  <dd className="text-base">{categoryLabels[product.category]}</dd>
+                  <dd className="text-base">{product.category}</dd>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-2">
-                {product.externalLink && (
+                {product.purchaseUrl && (
                   <Button asChild className="w-full" size="lg">
                     <a
-                      href={product.externalLink}
+                      href={product.purchaseUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={`${product.name} 공식 사이트로 이동 (새 창)`}
+                      aria-label={`${product.name} 구매 페이지로 이동 (새 창)`}
                     >
-                      공식 사이트 방문
+                      구매 페이지 방문
                       <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
                     </a>
                   </Button>
@@ -215,31 +262,34 @@ export default function ProductDetailPage() {
               같은 카테고리의 다른 제품
             </h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {relatedProducts.map((relatedProduct) => (
-                <Card key={relatedProduct.id} className="flex flex-col h-full">
-                  <CardHeader>
-                    <CardTitle className="text-lg line-clamp-1">
-                      {relatedProduct.name}
-                    </CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {relatedProduct.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex-1">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-semibold text-foreground">가격:</span>{' '}
-                      {relatedProduct.price}
-                    </p>
-                  </CardContent>
-                  <CardFooter>
-                    <Button asChild variant="outline" className="w-full">
-                      <Link href={`/daily-life/assistive-tech/${relatedProduct.id}`}>
-                        상세 보기
-                      </Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+              {relatedProducts.map((relatedProduct: any) => {
+                const relatedFeatures = JSON.parse(relatedProduct.features) as string[];
+                return (
+                  <Card key={relatedProduct.id} className="flex flex-col h-full">
+                    <CardHeader>
+                      <CardTitle className="text-lg line-clamp-1">
+                        {relatedProduct.name}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-2">
+                        {relatedProduct.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-semibold text-foreground">가격:</span>{' '}
+                        {formatPrice(relatedProduct.price)}
+                      </p>
+                    </CardContent>
+                    <CardFooter>
+                      <Button asChild variant="outline" className="w-full">
+                        <Link href={`/daily-life/assistive-tech/${relatedProduct.id}`}>
+                          상세 보기
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
             </div>
           </section>
         )}
