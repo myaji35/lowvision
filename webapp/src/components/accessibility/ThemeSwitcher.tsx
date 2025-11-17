@@ -7,6 +7,13 @@ import type { Theme } from '@/types';
 export function ThemeSwitcher() {
   const [theme, setTheme] = useState<Theme>('light');
 
+  const applyTheme = (newTheme: Theme) => {
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark', 'high-contrast');
+    root.classList.add(newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
   useEffect(() => {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('theme') as Theme | null;
@@ -14,14 +21,8 @@ export function ThemeSwitcher() {
       setTheme(savedTheme);
       applyTheme(savedTheme);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const applyTheme = (newTheme: Theme) => {
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark', 'high-contrast');
-    root.classList.add(newTheme);
-    localStorage.setItem('theme', newTheme);
-  };
 
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);

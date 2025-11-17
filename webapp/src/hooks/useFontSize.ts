@@ -12,6 +12,11 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
 export function useFontSize() {
   const [fontSize, setFontSize] = useState<FontSize>('normal');
 
+  const applyFontSize = (newFontSize: FontSize) => {
+    document.documentElement.style.fontSize = FONT_SIZE_MAP[newFontSize];
+    localStorage.setItem('fontSize', newFontSize);
+  };
+
   useEffect(() => {
     // Load font size from localStorage
     const savedFontSize = localStorage.getItem('fontSize') as FontSize | null;
@@ -19,12 +24,8 @@ export function useFontSize() {
       setFontSize(savedFontSize);
       applyFontSize(savedFontSize);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const applyFontSize = (newFontSize: FontSize) => {
-    document.documentElement.style.fontSize = FONT_SIZE_MAP[newFontSize];
-    localStorage.setItem('fontSize', newFontSize);
-  };
 
   const changeFontSize = (newFontSize: FontSize) => {
     setFontSize(newFontSize);

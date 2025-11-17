@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 
 async function getContactInfo() {
@@ -91,9 +92,9 @@ export async function Footer() {
                 </a>
               </li>
               <li>
-                <a href="/daily-life/assistive-tech" className="hover:underline">
+                <Link href="/daily-life/assistive-tech" className="hover:underline">
                   보조공학
-                </a>
+                </Link>
               </li>
               <li>
                 <a href="/community" className="hover:underline">
